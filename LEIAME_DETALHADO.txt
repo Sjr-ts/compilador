@@ -1,0 +1,256 @@
+================================================================================
+COMPILADOR DIDATICO - DOCUMENTACAO DETALHADA
+================================================================================
+Projeto: Trabalho Final de Compiladores
+Linguagem: C (subconjunto simplificado)
+Arquivo principal: main.c
+Arquivo de teste oficial: codigo_teste_compilador.c (em compilador/teste/)
+
+================================================================================
+1. VISAO GERAL
+================================================================================
+Este compilador didatico le um arquivo de codigo-fonte em C (subconjunto
+simplificado) e realiza 4 etapas de analise, apresentando um relatorio com
+erros e oportunidades de otimizacao. Nao e um compilador C completo: ele
+trabalha apenas com declaracoes simples, atribuicoes, tipos basicos, numeros,
+identificadores, operadores aritmeticos/relacionais e delimitadores.
+
+O programa NAO para no primeiro erro: percorre todo o arquivo e apresenta
+todos os erros que conseguir identificar.
+
+================================================================================
+2. ESTRUTURA DE ARQUIVOS
+================================================================================
+compilador/
+  main.c              -> ponto de entrada, analise lexica/sintatica/semantica/otimizacao
+  checkers.c          -> funcoes auxiliares (tabela de simbolos, erros, otimizacoes)
+  checkers.h          -> declaracoes das funcoes auxiliares
+  compile_commands.json -> configuracao do IntelliSense (VSCode)
+  .vscode/            -> configuracao do VSCode (compilacao, debug)
+  teste/
+    codigo_teste_compilador.c -> arquivo de teste oficial
+    target.c                  -> exemplo de codigo simples
+
+================================================================================
+3. ESTRUTURAS DE DADOS (checkers.h)
+================================================================================
+Symbol:
+  - name[64]              : nome da variavel
+  - type[16]              : tipo (int, float, char)
+  - line_declared         : linha onde foi declarada
+  - used_before_declared  : flag de uso antes da declaracao
+  - next                  : ponteiro para o proximo simbodo (lista ligada)
+
+SymbolTable:
+  - head  : ponteiro para o primeiro simbodo
+  - count : quantidade de simbodos
+
+Error:
+  - line        : linha do erro
+  - phase[32]   : fase (LEXICA, SINTATICA, SEMANTICA)
+  - description[256] : descricao do erro
+  - next       : ponteiro para o proximo erro (lista ligada)
+
+Optimization:
+  - line         : linha (0 = global)
+  - suggestion[128] : tipo de otimizacao
+  - original[256]   : trecho original
+  - optimized[256]  : trecho otimizado
+  - next            : ponteiro para a proxima otimizacao
+
+LastAssign:
+  - name[64] : nome da variavel
+  - line     : linha da ultima atribuicao
+  - next     : ponteiro para o proximo (lista ligada)
+
+================================================================================
+4. FLUXO DE EXECUCAO (main.c -> main())
+================================================================================
+Passo 1: Cria a tabela de simbodos (create_symbol_table).
+Passo 2: Pede o nome do arquivo ao usuario (scanf).
+         Aceita .c e .txt.
+Passo 3: Tenta abrir o arquivo no diretorio atual.
+         Se nao encontrar, tenta no subdiretorio "teste/".
+Passo 4: Se encontrou o arquivo:
+         a) PRIMEIRA PASSAGEM: le linha por linha, executa analise lexica.
+         b) Rebobina o arquivo (rewind).
+         c) SEGUNDA PASSAGEM: le linha por linha, executa analise sintatica,
+            e se a sintaxe estiver OK, executa analise semantica e otimizacao.
+         d) Imprime o relatorio (print_report).
+         e) Fecha o arquivo.
+Passo 5: Se nao encontrou, exibe mensagem de erro.
+Passo 6: Se a entrada for interativa (terminal), aguarda Enter antes de sair.
+
+Observacao: a analise lexica roda em TODAS as linhas (primeira passagem).
+A analise sintatica/semantica/otimizacao roda apenas em linhas que passam
+no filtro de linhas suportadas (is_unsupported_line).
+
+================================================================================
+5. ANALISE LEXICA (lexical_analysis)
+================================================================================
+Funcao: lexical_analysis(const char *line, int line_num)
+
+Le o codigo caractere por caractere e:
+- Ignora espacos em branco.
+- Ignora comentarios (// ate o fim da linha).
+- Reconhece identificadores e palavras reservadas (isalnum, _, ., ', ").
+- Reconhece operadores de dois caracteres (==, >=, <=, !=).
+- Reconhece operadores e delimitadores de um caractere (=, ;, (, ), {, }, +, -, *, /, >, <, !, :, ,, ., ?, [, ], &, |, %, ^, ~, #).
+- Identifica simbodos invalidos (@, $, \, `) e registra ERRO LEXICO.
+
+Cada erro lexico e registrado com a linha, o lexema invalido e a fase "LEXICA".
+O analisador continua apos encontrar um erro lexico.
+
+================================================================================
+6. ANALISE SINTATICA (check_line_syntax)
+================================================================================
+Funcao: check_line_syntax(const char *line, int line_num)
+
+Verifica a estrutura gramatical simplificada de cada linha:
+- Linha vazia ou comentario: OK (retorna 1).
+- Linha com tipo (int, float, char):
+    * Extrai o identificador.
+    * Se o identificador for seguido de '(', e declaracao de funcao -> OK (skip).
+    * Exige '=' apos o identificador (ou ';' para declaracao sem inicializacao).
+    * Exige ';' ao final da declaracao.
+    * Se faltar ';' ou '=', registra ERRO SINTATICO.
+- Linha sem tipo (atribuicao):
+    * Procura '=' (ignorando operadores compostos >=, <=, ==, !=).
+    * Se encontrar '=', verifica se ha ';' ao final.
+    * Se nao encontrar '=', verifica se a linha termina (OK) ou retorna erro.
+
+Retorna 1 se a sintaxe esta OK, 0 se houver erro.
+
+================================================================================
+7. ANALISE SEMANTICA (check_line_semantics)
+================================================================================
+Funcao: check_line_semantics(const char *line, int line_num)
+
+Valida o significado do codigo usando uma tabela de simbodo simplificada:
+- Linha vazia ou comentario: ignora.
+- Declaracao com tipo (int, float, char):
+    * Extrai o identificador.
+    * Se ja existir na tabela -> ERRO SEMANTICO (redeclaracao).
+    * Insere na tabela de simbodos.
+    * Rastreia a ultima atribuicao (track_last_assign).
+    * Valida compatibilidade de tipos:
+        - STRING em int/float/char -> erro
+        - CHAR em int/float -> erro
+        - FLOAT em int -> erro
+        - Identificador referenciado: verifica se existe e se os tipos sao compatíveis.
+- Atribuicao sem tipo (ex: x = 20):
+    * Extrai o alvo (variavel).
+    * Se nao existir na tabela -> ERRO SEMANTICO (usada antes de declarada).
+    * Marca a variavel como usada (mark_symbol_used).
+    * Verifica codigo morto (check_and_clear_dead_code) se o RHS nao usa a variavel.
+    * Rastreia a ultima atribuicao.
+
+Tabela de simbodo: lista ligada de Symbol, com busca linear (find_symbol).
+
+================================================================================
+8. OTIMIZACAO (check_line_optimization)
+================================================================================
+Funcao: check_line_optimization(const char *line, int line_num)
+
+Identifica oportunidades de otimizacao (sem alterar o comportamento):
+- Constant folding: se ambos os operandos sao numeros, calcula o resultado.
+  Ex: int y = 4 * 5; -> y = 20
+- Simplificacao algebrica: x + 0 -> x, 0 + x -> x.
+  Ex: int z = y + 0; -> z = y
+- Eliminacao de codigo morto: se uma variavel e reatribuida sem que o valor
+  anterior seja usado, a atribuicao anterior pode ser removida.
+  Ex: int x = 10; x = 20; -> remover atribuicao anterior de x
+
+Cada otimizacao e registrada com o trecho original e a sugestao otimizada.
+
+================================================================================
+9. FUNCOES AUXILIARES (checkers.c / checkers.h)
+================================================================================
+create_symbol_table()    : cria tabela de simbodo vazia.
+find_symbol(name)        : busca simbodo pelo nome (lista ligada).
+insert_symbol(name, type, line) : insere simbodo (se nao existir).
+mark_symbol_used(name, line)    : marca simbodo como usado antes da declaracao.
+add_error(line, phase, desc)     : registra erro na lista de erros.
+add_optimization(...)    : registra otimizacao na lista de otimizacoes.
+track_last_assign(name, line)    : rastreia ultima atribuicao de uma variavel.
+check_and_clear_dead_code(name, line) : verifica e registra codigo morto.
+trim_whitespace(str)     : remove espacos do inicio/fim de uma string.
+is_comment_line(line)    : verifica se a linha e comentario.
+strip_comments(line)     : remove comentarios (//) da linha.
+
+================================================================================
+10. FILTRO DE LINHAS NAO SUPORTADAS (is_unsupported_line)
+================================================================================
+Funcao: is_unsupported_line(const char *line)
+
+Ignora linhas que nao fazem parte do subconjunto suportado:
+- Pre-processador: #include, #define
+- Ponteiros: Type *var
+- Chaves: { }
+- Acesso a membros: obj->field, obj.field
+- Arrays: var[index]
+- Virgula: declaracoes multiplas
+- Barra invertida: \n, \t (em strings)
+- Palavras-chave de controle: if, else, for, while, do, switch, case, default, return
+- Palavras-chave de tipo: struct, typedef, void
+- Funcoes: printf, scanf, malloc, sizeof
+- Declaracoes de funcao: tipo identificador ( ... )
+
+Linhas filtradas nao geram erros nem sao analisadas.
+Comentarios (//) sao removidos antes da verificacao.
+
+================================================================================
+11. RELATORIO (print_report)
+================================================================================
+Funcao: print_report(const char *filename)
+
+Imprime o relatorio completo:
+1. Codigo-fonte analisado (com numeracao de linhas).
+2. Analise Lexica: erros lexicos encontrados.
+3. Analise Sintatica: erros sintaticos encontrados.
+4. Analise Semantica: erros semanticos encontrados.
+5. Otimizacao: oportunidades de otimizacao.
+6. Resumo: contagem de cada categoria.
+
+================================================================================
+12. COMPILACAO E EXECUCAO
+================================================================================
+Compilacao (Windows com MSYS2/MinGW):
+  gcc -std=c17 -Wall -Wextra -pedantic -g -o main.exe main.c checkers.c
+
+Execucao:
+  ./main.exe
+  Digite o nome do arquivo (.c ou .txt): codigo_teste_compilador.c
+
+O compilador procura o arquivo no diretorio atual. Se nao encontrar,
+procura no subdiretorio "teste/".
+
+No VSCode:
+  Ctrl+Shift+B -> compila
+  F5 -> executa (abre console real)
+
+================================================================================
+13. LIMITACOES
+================================================================================
+- Nao e um compilador C completo.
+- Nao suporta: funcoes, structs, arrays, ponteiros, for/while/if (apenas
+  detecta e ignora), pre-processador.
+- Apenas declaracoes simples e atribuicoes sao analisadas.
+- A tabela de simbodo usa busca linear (O(n)).
+- Nao ha propagacao de constantes (apenas constant folding).
+- A eliminacao de codigo morto e simplificada (apenas ultima atribuicao).
+
+================================================================================
+14. ARQUIVO DE TESTE OFICIAL
+================================================================================
+Arquivo: codigo_teste_compilador.c (em compilador/teste/)
+
+Resultados esperados:
+  Erros lexicos:       1
+  Erros sintaticos:    2
+  Erros semanticos:    3
+  Oportunidades de otimizacao: 6
+
+================================================================================
+FIM DA DOCUMENTACAO
+================================================================================
