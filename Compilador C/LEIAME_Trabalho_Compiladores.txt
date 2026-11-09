@@ -1,0 +1,126 @@
+LEIAME - TRABALHO FINAL DE COMPILADORES
+================================================
+
+OBJETIVO
+-------
+O programa desenvolvido pelo grupo devera receber como entrada um arquivo .c e
+realizar, de forma DIDATICA E SIMPLIFICADA, as seguintes etapas:
+
+1. ANALISE LEXICA
+2. ANALISE SINTATICA
+3. ANALISE SEMANTICA
+4. OTIMIZACAO
+
+IMPORTANTE
+----------
+Nao e necessario construir um compilador C completo. O trabalho deve implementar
+o subconjunto da linguagem trabalhado em sala: declaracoes simples, atribuicoes,
+tipos int/float/char/string quando aplicavel, numeros, identificadores, operadores
+aritmeticos e relacionais e delimitadores.
+
+O analisador NAO deve parar no primeiro erro. Ele deve percorrer o arquivo e
+apresentar todos os erros que conseguir identificar.
+
+ARQUIVO DE ENTRADA
+------------------
+Use o arquivo:
+codigo_teste_compilador.c
+
+O programa do grupo deve abrir e analisar esse arquivo.
+
+RETORNO ESPERADO
+----------------
+A formatacao pode variar, mas o retorno deve deixar claro:
+- etapa;
+- linha;
+- tipo do erro ou oportunidade de otimizacao;
+- elemento envolvido;
+- explicacao.
+
+Exemplo de retorno esperado:
+
+========================================
+RELATORIO DO COMPILADOR
+========================================
+
+[ANALISE LEXICA]
+Linha 18: ERRO LEXICO
+Lexema: @
+Motivo: simbolo nao reconhecido pela linguagem.
+
+[ANALISE SINTATICA]
+Linha 15: ERRO SINTATICO
+Motivo: esperado ';' ao final da declaracao.
+
+Linha 16: ERRO SINTATICO
+Trecho: int = valor 20;
+Motivo: declaracao nao segue a estrutura esperada:
+       TIPO IDENTIFICADOR = VALOR ;
+
+[ANALISE SEMANTICA]
+Linha 11: ERRO SEMANTICO
+Identificador: idade
+Motivo: identificador ja declarado neste escopo.
+
+Linha 12: ERRO SEMANTICO
+Identificador: quantidade
+Motivo: variavel utilizada antes de ser declarada.
+
+Linha 13: ERRO SEMANTICO
+Identificador: nome
+Motivo: variavel declarada como INT recebeu valor STRING.
+
+[OTIMIZACAO]
+Trecho: int resultado = 10 + 20;
+Sugestao: constant folding
+Resultado otimizado: int resultado = 30;
+
+Trecho: int dobro = 5 * 2;
+Sugestao: constant folding
+Resultado otimizado: int dobro = 10;
+
+Trecho: int neutro = resultado + 0;
+Sugestao: simplificacao algebrica
+Resultado otimizado: int neutro = resultado;
+
+Trecho:
+int x = 10;
+x = 20;
+Sugestao: eliminacao de codigo morto, desde que o primeiro valor nao seja usado.
+Resultado otimizado:
+int x = 20;
+
+Trecho: int y = 4 * 5;
+Sugestao: constant folding
+Resultado otimizado: int y = 20;
+
+Trecho: int z = y + 0;
+Sugestao: simplificacao algebrica
+Resultado otimizado: int z = y;
+
+========================================
+RESUMO
+========================================
+Erros lexicos encontrados: 1
+Erros sintaticos encontrados: 2
+Erros semanticos encontrados: 3
+Oportunidades de otimizacao: 6
+
+Observacao:
+Os numeros de linha devem ser calculados pelo programa. O exemplo acima indica
+o formato e os tipos de retorno esperados. Pequenas diferencas de classificacao
+serao avaliadas conforme a implementacao e a justificativa tecnica do grupo.
+
+ENTREGA SUGERIDA
+----------------
+- Codigo-fonte completo do compilador didatico.
+- Arquivo codigo_teste_compilador.c analisado pelo sistema.
+- README/LEIAME com instrucoes de compilacao e execucao.
+- Evidencia da execucao (print ou arquivo de saida).
+- Breve descricao de como cada etapa foi implementada.
+
+CRITERIO CENTRAL
+----------------
+Nao sera aceito um programa que apenas imprima mensagens fixas para este arquivo.
+O sistema deve realmente ler o arquivo, reconhecer os elementos e executar as
+validacoes implementadas.
